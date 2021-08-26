@@ -13,23 +13,17 @@ from tqdm.notebook import tqdm # 因为一般都是用在jupyter notebook上的�
 import sys
 sys.path.append('../')
 from toolbox.io_utils import deepcopy_state_dict_to_cpu
-from controll_learning_process import get_printing_info_for_training_cail
-from controll_learning_process import check_model_performance_function_cail
 
-def train_model(model,
+def train_model(args,
+                model,
                 forward_function,
                 get_optimizer_and_schedule,
-                args,
                 eval_model,
                 train_dl,
                 val_dl,
                 get_printing_info_for_training,
-                get_printing_info_for_eval,
                 check_model_performance_function,
-
-
-                eval_model, optimizer, lrs,
-                train_dl, val_dl, device, epochs, eval_sep_step, max_patient):
+                ):
 
     # 判断输入的参数的模式是否一致
     # 带有val_dl的模式或者是不带val_dl的模式的
@@ -39,7 +33,6 @@ def train_model(model,
                   and (check_model_performance_function is not None))
     condition2 = (val_dl is None)
     assert (condition1 or condition2)
-
 
     best_score = 0
     best_model = deepcopy_state_dict_to_cpu(model)
@@ -61,8 +54,11 @@ def train_model(model,
             ds_iter = iter(train_dl)
             batch = next(ds_iter)
 
+        # set model to train
+        model.tain()
+
         with autocast():
-            loss, _  = forward_function(args, model, batch)
+            loss, _ = forward_function(args, model, batch)
 
         scaler.scale(loss).backward()
         scaler.step(optimizer)
@@ -96,41 +92,46 @@ def train_model(model,
 
     return best_model, best_score
 
-def eval_model(args, model, forward_function, val_dl, device):
-
-
-
-
-
-
-
-def eval_model(args, model, forward_function, val_dl, device):
+def eval_model(args,
+               model,
+               val_dl,
+               forward_function,
+               get_batch_gt_and_mp,
+               check_model_performance_function,
+               ):
     model.eval()
     bar = tqdm(val_dl, desc=f"EVAL")
     loss_sum = 0
-    samples_num = 0
-    _gt = []
-    _pp = []  # pp for predict_prob
+    _ground_truth = []
+    _model_pred = []
     for batch in bar:
-        loss, logit = forward_fct(model, batch, device)
-        loss_sum += loss.item()
-        samples_num += batch["labels"].size()[0]
-        _gt.extend(batch["labels"].detach().cpu().tolist())
-        _pp.extend(logit[:, 1].detach().cpu().tolist())
-    _pl = [1 if p > pp_threshold else 0 for p in _pp]
+        loss, pred = forward_function(args, model, batch)
+        batch_gt, batch_mp = get_batch_gt_and_mp(batch, pred)
+        _ground_truth.extend(batch_gt)
+        _model_pred.extend(batch_mp)
+        loss_sum += loss
+    score = check_model_performance_function(_ground_truth, _model_pred)
+    loss = loss / len(_ground_truth)
+    return score, loss
 
-    f1 = f1_score(y_true=_gt, y_pred=_pl)
-    average_loss = loss_sum / samples_num
-
-    return f1, average_loss
-
-
-def pred_model(model, forward_fct, test_dl, device):
+def model_infer(args,
+                model,
+                forward_function,
+                test_dl,
+                get_batch_mp,
+                decode_mp_function,  # 把模型的输出转换成标准信息
+                postprocess_function=None # 如果有后处理方法，就加入后处理方法
+                ):
     model.eval()
     bar = tqdm(test_dl, desc=f"INFER")
-    _pp = []  # pp for predict_prob
+    _model_pred = []
     for batch in bar:
-        _, logit = forward_fct(model, batch, device)
-        _pp.append(logit.detach().cpu())
-    _pp = torch.cat(_pp)
-    return _pp
+        _, pred = forward_function(args, model, batch)
+        batch_mp = get_batch_mp(pred)
+        _model_pred.extend(batch_mp)
+    decoded_info = decode_mp_function(_model_pred)
+    if postprocess_function:
+        decoded_info = postprocess_function(decoded_info)
+    return decoded_info
+
+
