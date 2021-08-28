@@ -17,11 +17,11 @@ from toolbox.io_utils import deepcopy_state_dict_to_cpu
 def train_model(args,
                 model,
                 forward_function,
-                get_optimizer_and_schedule,
-                eval_model,
+                get_optimizer_and_scheduler,
                 train_dl,
-                val_dl,
                 get_printing_info_for_training,
+                val_dl,
+                eval_model,
                 check_model_performance_function,
                 ):
 
@@ -41,7 +41,7 @@ def train_model(args,
     # hist = History()
 
     # initialize optimizer, scheduler and scaler
-    optimizer, scheduler = get_optimizer_and_schedule(args)
+    optimizer, scheduler = get_optimizer_and_scheduler(args)
     scaler = GradScaler()
 
     pbar = tqdm(range(args.total_training_steps), desc=f"TRAIN")
@@ -49,7 +49,7 @@ def train_model(args,
 
     for curr_step in pbar:
         try:
-            batch  = next(ds_iter)
+            batch = next(ds_iter)
         except:
             ds_iter = iter(train_dl)
             batch = next(ds_iter)
@@ -65,7 +65,7 @@ def train_model(args,
 
         # record and plot training info的这个模块需要往后再细化
         printing_info_for_training = get_printing_info_for_training(args, loss, batch)  # args相当于占位吧
-
+        pbar.set_postfix(printing_info_for_training)
         if curr_step != 0 and curr_step % args.eval_step == 0 and val_dl is not None:
             score, eval_loss = eval_model(args,
                                           model,
