@@ -7,7 +7,7 @@ def forward_function_cail(args, model, batch):
 
     loss, prediction = model(input_ids=input_ids,
                              attention_mask=attention_mask,
-                             label_ids=label_ids)
+                             labels=label_ids)
 
     return loss, prediction
 

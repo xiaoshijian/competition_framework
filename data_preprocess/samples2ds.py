@@ -28,14 +28,16 @@ class CailNerDataset():
         label_ids = [
             self.labels_ids_mapping[label] if label in self.labels_ids_mapping else self.labels_ids_mapping['O'] for
             label in sample['labels_list']]
-        label_ids = [-100] + label_ids + [-100]
+        # label_ids = [-100] + label_ids + [-100]
+        label_ids = [self.labels_ids_mapping['O']] + label_ids + [self.labels_ids_mapping['O']]
 
         # padding
         length_before = len(input_ids)
         if length_before < self.max_length:
             input_ids = input_ids + [0] * (self.max_length - length_before)
             attention_mask = attention_mask + [0] * (self.max_length - length_before)
-            label_ids = label_ids + [-100] * (self.max_length - length_before)
+            # label_ids = label_ids + [-100] * (self.max_length - length_before)
+            label_ids = label_ids + [self.labels_ids_mapping['O']] * (self.max_length - length_before)
             original_char_index_with_se = original_char_index_with_se + [-1] * (self.max_length - length_before)
 
         return {

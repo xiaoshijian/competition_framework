@@ -41,7 +41,7 @@ class BertCrf(nn.Module):
         loss_mask = attention_mask.bool().bool()
 
         if labels is not None:
-            loss = -self.crf(logits[:, 1:], labels[:, 1:], mask=loss_mask[:, 1:], reduction='mean')
-        prediction = self.crf.decode(logits[:, 1:], mask=loss_mask[:, 1:])
+            loss = -self.crf(logits, labels, mask=loss_mask, reduction='mean')
+        prediction = self.crf.decode(logits, mask=loss_mask)
 
         return loss, prediction

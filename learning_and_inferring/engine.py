@@ -14,14 +14,18 @@ import sys
 sys.path.append('../')
 from toolbox.io_utils import deepcopy_state_dict_to_cpu
 
+
 def train_model(args,
                 model,
                 forward_function,
                 get_optimizer_and_scheduler,
                 train_dl,
+
                 get_printing_info_for_training,
+
                 val_dl,
                 eval_model,
+                get_batch_gt_and_mp,
                 check_model_performance_function,
                 ):
 
@@ -29,7 +33,8 @@ def train_model(args,
     # 带有val_dl的模式或者是不带val_dl的模式的
     # 如果有val_dl的话，val_dl、eval_model, check_model_performance_function需要同时存在
     condition1 = ((val_dl is not None)
-                  (eval_model is not None)
+                  and (eval_model is not None)
+                  and (get_batch_gt_and_mp is not None)
                   and (check_model_performance_function is not None))
     condition2 = (val_dl is None)
     assert (condition1 or condition2)
@@ -41,11 +46,13 @@ def train_model(args,
     # hist = History()
 
     # initialize optimizer, scheduler and scaler
-    optimizer, scheduler = get_optimizer_and_scheduler(args)
+    optimizer, scheduler = get_optimizer_and_scheduler(args, model)
     scaler = GradScaler()
+    # all elements set, begin to train model
 
     pbar = tqdm(range(args.total_training_steps), desc=f"TRAIN")
     ds_iter = iter(train_dl)
+    # print("step before training are settled")
 
     for curr_step in pbar:
         try:
@@ -55,7 +62,7 @@ def train_model(args,
             batch = next(ds_iter)
 
         # set model to train
-        model.tain()
+        model.train()
 
         with autocast():
             loss, _ = forward_function(args, model, batch)
@@ -71,6 +78,7 @@ def train_model(args,
                                           model,
                                           forward_function,
                                           val_dl,
+                                          get_batch_gt_and_mp,
                                           check_model_performance_function)
             msg = '{} in Evaluation set: {}, loss in evaluation set: {}'
             print(msg.format(args.checking_metrics, score, eval_loss))
@@ -127,7 +135,7 @@ def model_infer(args,
     _model_pred = []
     for batch in bar:
         _, pred = forward_function(args, model, batch)
-        batch_mp = get_batch_mp(pred)
+        batch_mp = get_batch_mp(batch, pred)
         _model_pred.extend(batch_mp)
     decoded_info = decode_mp_function(_model_pred)
     if postprocess_function:
